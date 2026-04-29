@@ -1,0 +1,37 @@
+@import url('https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;500;600;700;800;900&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --font-display: "Anton", sans-serif;
+  
+  --color-brand-bg: #ffffff;
+  --color-brand-ink: #000000;
+  --color-brand-accent: #0047FF;
+  --color-brand-muted: #666666;
+  --color-brand-line: #e5e5e5;
+}
+
+@layer base {
+  body {
+    @apply bg-brand-bg text-brand-ink font-sans;
+  }
+  
+  .italic-small {
+    font-size: clamp(1rem, 5vw, 4rem);
+  }
+
+  h1, h2, h3, .logo {
+    @apply uppercase tracking-tight font-black;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply bg-brand-ink text-white px-10 py-5 font-bold uppercase text-sm cursor-pointer hover:opacity-90 transition-opacity;
+  }
+  
+  .btn-secondary {
+    @apply border border-brand-ink px-10 py-5 font-bold uppercase text-sm bg-transparent cursor-pointer hover:bg-brand-ink hover:text-white transition-all;
+  }
+}

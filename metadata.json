@@ -1,0 +1,14 @@
+{
+  "name": "SoleSphere - Premium Shoe E-Commerce",
+  "description": "A high-performance, full-stack shoe marketplace featuring AI-powered size suggestions, real-time order tracking, and a comprehensive admin dashboard.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone",
+    "geolocation"
+  ],
+  "majorCapabilities": [
+    "AI_RECOMMENDATIONS",
+    "REALTIME_DATABASE",
+    "SECURE_CHECKOUT"
+  ]
+}
