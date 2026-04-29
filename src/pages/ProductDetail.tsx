@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Star, ShoppingBag, Zap, Heart, Sparkles, Loader2, Truck, RefreshCw, ShieldCheck, ChevronLeft, ChevronRight } from "lucide-react";
+import { Star, ShoppingBag, Zap, Heart, Sparkles, Loader2, Truck, RefreshCw, ShieldCheck, ChevronLeft, ChevronRight, Share2, Check } from "lucide-react";
 import { Product } from "../types";
 import { useApp } from "../context/AppContext";
 import { motion, AnimatePresence } from "framer-motion";
@@ -18,6 +18,7 @@ export default function ProductDetail() {
   const [loadingAI, setLoadingAI] = useState(false);
   const [showAIAdvisor, setShowAIAdvisor] = useState(false);
   const [isSizeGuideOpen, setIsSizeGuideOpen] = useState(false);
+  const [isCopied, setIsCopied] = useState(false);
 
   useEffect(() => {
     fetch("/api/products")
@@ -94,6 +95,28 @@ export default function ProductDetail() {
     }
   };
 
+  const handleShare = async () => {
+    if (!product) return;
+    
+    const shareData = {
+      title: `${product.brand} - ${product.name}`,
+      text: `Check out these ${product.name} sneakers at SoleSphere.`,
+      url: window.location.href,
+    };
+
+    try {
+      if (navigator.share) {
+        await navigator.share(shareData);
+      } else {
+        await navigator.clipboard.writeText(window.location.href);
+        setIsCopied(true);
+        setTimeout(() => setIsCopied(false), 2000);
+      }
+    } catch (err) {
+      console.error("Error sharing:", err);
+    }
+  };
+
   if (!product) return null;
 
   return (
@@ -157,12 +180,38 @@ export default function ProductDetail() {
             <header className="mb-12">
                <div className="flex justify-between items-start mb-4">
                   <span className="text-[10px] font-black uppercase tracking-[0.2em] text-brand-muted">{product.brand} // {product.category}</span>
-                  <button 
-                    onClick={() => toggleWishlist(product.id)}
-                    className="p-2 border border-brand-line rounded-full hover:bg-gray-50"
-                  >
-                    <Heart className={`w-5 h-5 ${wishlist.includes(product.id) ? 'fill-brand-ink' : ''}`} />
-                  </button>
+                  <div className="flex gap-2">
+                    <button 
+                      onClick={handleShare}
+                      className="p-2 border border-brand-line rounded-full hover:bg-gray-50 flex items-center justify-center transition-colors group relative"
+                      title="Share product"
+                    >
+                      {isCopied ? (
+                        <Check className="w-5 h-5 text-green-500" />
+                      ) : (
+                        <Share2 className="w-5 h-5 text-brand-muted group-hover:text-black" />
+                      )}
+                      
+                      <AnimatePresence>
+                        {isCopied && (
+                          <motion.span
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0 }}
+                            className="absolute -top-8 right-0 bg-black text-white text-[9px] font-black px-2 py-1 uppercase rounded"
+                          >
+                            Copied!
+                          </motion.span>
+                        )}
+                      </AnimatePresence>
+                    </button>
+                    <button 
+                      onClick={() => toggleWishlist(product.id)}
+                      className="p-2 border border-brand-line rounded-full hover:bg-gray-50"
+                    >
+                      <Heart className={`w-5 h-5 ${wishlist.includes(product.id) ? 'fill-brand-ink' : ''}`} />
+                    </button>
+                  </div>
                </div>
                <h1 className="text-7xl font-black italic tracking-tighter leading-none mb-6">{product.name}.</h1>
                <div className="flex items-center gap-6">

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Filter, SlidersHorizontal, ChevronDown, Star } from "lucide-react";
+import { Filter, SlidersHorizontal, ChevronDown, Star, Share2, Check } from "lucide-react";
 import { Product } from "../types";
 import { Link, useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
@@ -11,6 +11,7 @@ export default function ProductList() {
   const [activeCategory, setActiveCategory] = useState(searchParams.get("category") || "All");
   const [priceRange, setPriceRange] = useState<[number, number]>([100, 5000]);
   const [isFilterOpen, setIsFilterOpen] = useState(true);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/products")
@@ -21,6 +22,30 @@ export default function ProductList() {
         setFilteredProducts(sortedData);
       });
   }, []);
+
+  const handleQuickShare = async (e: React.MouseEvent, product: Product) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    const url = `${window.location.origin}/product/${product.id}`;
+    const shareData = {
+      title: product.name,
+      text: `Check out ${product.name} at SoleSphere!`,
+      url: url
+    };
+
+    try {
+      if (navigator.share) {
+        await navigator.share(shareData);
+      } else {
+        await navigator.clipboard.writeText(url);
+        setCopiedId(product.id);
+        setTimeout(() => setCopiedId(null), 2000);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   useEffect(() => {
     let result = products;
@@ -120,6 +145,15 @@ export default function ProductList() {
                 animate={{ opacity: 1 }}
                 className="bg-white p-8 border border-brand-line group relative flex flex-col"
               >
+                <div className="absolute top-4 right-4 z-10 translate-x-2 opacity-0 group-hover:translate-x-0 group-hover:opacity-100 transition-all">
+                  <button 
+                    onClick={(e) => handleQuickShare(e, product)}
+                    className="w-8 h-8 bg-white border border-brand-line rounded-full flex items-center justify-center hover:bg-brand-ink hover:text-white transition-colors shadow-sm text-brand-ink"
+                    title="Share Link"
+                  >
+                    {copiedId === product.id ? <Check className="w-3.5 h-3.5 text-green-500" /> : <Share2 className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
                 <Link to={`/product/${product.id}`} className="flex-1">
                   <div className="aspect-square bg-gray-50 mb-8 rounded overflow-hidden">
                     <img src={product.images[0]} alt={product.name} className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-700" />

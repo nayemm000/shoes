@@ -1,17 +1,42 @@
 import { motion } from "framer-motion";
-import { ArrowRight, Star, ShoppingBag, Zap } from "lucide-react";
+import { ArrowRight, Star, ShoppingBag, Zap, Share2, Check } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { Product } from "../types";
 
 export default function Home() {
   const [trending, setTrending] = useState<Product[]>([]);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/products")
       .then(res => res.json())
       .then(data => setTrending([...data].reverse().slice(0, 4)));
   }, []);
+
+  const handleQuickShare = async (e: React.MouseEvent, product: Product) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    const url = `${window.location.origin}/product/${product.id}`;
+    const shareData = {
+      title: product.name,
+      text: `Check out ${product.name} at SoleSphere!`,
+      url: url
+    };
+
+    try {
+      if (navigator.share) {
+        await navigator.share(shareData);
+      } else {
+        await navigator.clipboard.writeText(url);
+        setCopiedId(product.id);
+        setTimeout(() => setCopiedId(null), 2000);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   const container = {
     hidden: { opacity: 0 },
@@ -93,7 +118,16 @@ export default function Home() {
                 whileHover={{ y: -5 }}
                 className="bg-white p-6 border border-brand-line relative group"
               >
-                {product.id === "1" && <div className="absolute top-4 right-4 bg-brand-accent text-white text-[9px] font-bold px-2 py-1 rounded-full uppercase z-10">AI Size Fit</div>}
+                <div className="absolute top-4 right-4 flex gap-2 z-10 translate-x-2 opacity-0 group-hover:translate-x-0 group-hover:opacity-100 transition-all">
+                  <button 
+                    onClick={(e) => handleQuickShare(e, product)}
+                    className="w-8 h-8 bg-white border border-brand-line rounded-full flex items-center justify-center hover:bg-brand-ink hover:text-white transition-colors shadow-sm text-brand-ink"
+                    title="Share Link"
+                  >
+                    {copiedId === product.id ? <Check className="w-3.5 h-3.5 text-green-500" /> : <Share2 className="w-3.5 h-3.5" />}
+                  </button>
+                  {product.id === "1" && <div className="bg-brand-accent text-white text-[9px] font-bold px-2 py-1 rounded-full uppercase flex items-center">AI Fit</div>}
+                </div>
                 <Link to={`/product/${product.id}`}>
                   <div className="aspect-square bg-gray-50 mb-4 overflow-hidden rounded">
                     <img src={product.images[0]} alt={product.name} className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-500" />
