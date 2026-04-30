@@ -258,12 +258,20 @@ export default function Admin() {
                              </td>
                              <td className="px-10 py-6">
                                 {(order as any).userId === "guest" ? (
-                                  <span className="bg-gray-100 text-gray-400 px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-widest leading-none">Guest</span>
+                                  <div className="flex flex-col gap-1">
+                                    <span className="bg-gray-100 text-gray-500 px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-widest leading-none w-fit">Guest Order</span>
+                                    <span className="text-[10px] font-bold uppercase text-brand-muted">Direct Entry</span>
+                                  </div>
                                 ) : (
-                                  <span className="bg-green-100 text-green-600 px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-widest leading-none">User</span>
+                                  <span className="bg-green-100 text-green-600 px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-widest leading-none">Database User</span>
                                 )}
                              </td>
-                             <td className="px-10 py-6 uppercase text-xs font-bold">{order.customerName}</td>
+                             <td className="px-10 py-6">
+                                <div className="flex flex-col">
+                                   <span className="uppercase text-xs font-black italic">{order.customerName}</span>
+                                   <span className="text-[10px] text-brand-muted">{order.email}</span>
+                                </div>
+                             </td>
                              <td className="px-10 py-6 text-[10px] font-bold uppercase tracking-widest text-brand-muted">
                                 {order.items.reduce((acc, item) => acc + item.quantity, 0)} Units
                              </td>
@@ -285,24 +293,73 @@ export default function Admin() {
                              </td>
                           </tr>
                           <tr className="bg-[#fcfcfc]">
-                            <td colSpan={6} className="px-10 py-4 border-b border-brand-line">
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-                                <div>
-                                  <p className="text-[9px] font-black uppercase tracking-[0.2em] text-brand-muted mb-4">Logistics Information</p>
-                                  <div className="space-y-1">
-                                    <p className="text-xs font-bold uppercase">{order.address}</p>
-                                    <p className="text-xs text-brand-muted font-bold capitalize">{order.customerName} // {order.email}</p>
-                                    <p className="text-xs text-brand-muted">{order.phone} // {order.paymentMethod}</p>
+                            <td colSpan={8} className="px-10 py-8 border-b border-brand-line">
+                              <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
+                                <div className="lg:col-span-5">
+                                  <div className="flex justify-between items-start mb-6">
+                                     <p className="text-[9px] font-black uppercase tracking-[0.2em] text-brand-muted">Customer Logistics & Identity</p>
+                                     <button 
+                                       onClick={() => {
+                                          const newName = prompt("Edit Customer Name:", order.customerName);
+                                          const newEmail = prompt("Edit Email:", order.email);
+                                          const newPhone = prompt("Edit Phone:", order.phone);
+                                          const newAddress = prompt("Edit Address:", order.address);
+                                          
+                                          if (newName || newEmail || newPhone || newAddress) {
+                                             updateDoc(doc(db, "orders", order.id), {
+                                                customerName: newName || order.customerName,
+                                                email: newEmail || order.email,
+                                                phone: newPhone || order.phone,
+                                                address: newAddress || order.address,
+                                                updatedAt: new Date().toISOString()
+                                             });
+                                          }
+                                       }}
+                                       className="text-[9px] font-black uppercase tracking-widest border border-brand-line px-2 py-1 hover:bg-white"
+                                     >
+                                        Edit Details
+                                     </button>
+                                  </div>
+                                  <div className="bg-white p-6 border border-brand-line space-y-4 shadow-sm">
+                                    <div className="grid grid-cols-2 gap-4">
+                                       <div>
+                                          <p className="text-[8px] uppercase text-brand-muted font-bold mb-1">Name</p>
+                                          <p className="text-xs font-black uppercase">{order.customerName}</p>
+                                       </div>
+                                       <div>
+                                          <p className="text-[8px] uppercase text-brand-muted font-bold mb-1">Phone</p>
+                                          <p className="text-xs font-bold">{order.phone}</p>
+                                       </div>
+                                    </div>
+                                    <div>
+                                       <p className="text-[8px] uppercase text-brand-muted font-bold mb-1">Email Connection</p>
+                                       <p className="text-xs font-bold underline underline-offset-4">{order.email}</p>
+                                    </div>
+                                    <div>
+                                       <p className="text-[8px] uppercase text-brand-muted font-bold mb-1">Full Delivery Address</p>
+                                       <p className="text-xs font-bold leading-relaxed">{order.address}</p>
+                                    </div>
+                                    <div className="pt-2">
+                                       <p className="text-[8px] uppercase text-brand-muted font-bold mb-1">Payment Method</p>
+                                       <span className="text-[10px] font-black uppercase tracking-widest bg-gray-100 px-2 py-1">{order.paymentMethod}</span>
+                                    </div>
                                   </div>
                                 </div>
-                                <div>
-                                  <p className="text-[9px] font-black uppercase tracking-[0.2em] text-brand-muted mb-4">Manifest (Shoes Requested)</p>
-                                  <div className="space-y-4">
+                                <div className="lg:col-span-7">
+                                  <p className="text-[9px] font-black uppercase tracking-[0.2em] text-brand-muted mb-6">Manifest (Product Request Breakdown)</p>
+                                  <div className="grid grid-cols-1 gap-3">
                                     {order.items.map((item, idx) => (
-                                      <div key={idx} className="flex justify-between items-center bg-white p-3 border border-brand-line">
-                                        <div>
-                                          <p className="text-xs font-black uppercase italic">{item.name}</p>
-                                          <p className="text-[10px] font-bold uppercase text-brand-muted">Size: {item.selectedSize} // Qty: {item.quantity}</p>
+                                      <div key={idx} className="flex items-center gap-4 bg-white p-4 border border-brand-line group hover:border-brand-ink transition-colors">
+                                        <div className="w-12 h-12 bg-gray-50 flex-shrink-0">
+                                           <img src={item.images[0]} className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all" />
+                                        </div>
+                                        <div className="flex-1">
+                                          <p className="text-xs font-black uppercase italic tracking-tighter">{item.name}</p>
+                                          <p className="text-[10px] font-bold uppercase text-brand-muted flex gap-3">
+                                             <span>Size: <span className="text-brand-ink">{item.selectedSize}</span></span>
+                                             <span>Qty: <span className="text-brand-ink">{item.quantity}</span></span>
+                                             {item.selectedVariantName && <span>Tone: <span className="text-brand-ink">{item.selectedVariantName}</span></span>}
+                                          </p>
                                         </div>
                                         <p className="font-black italic text-sm">৳{item.price * item.quantity}</p>
                                       </div>

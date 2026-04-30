@@ -12,7 +12,9 @@ interface AppContextType {
   clearCart: () => void;
   toggleWishlist: (productId: string) => void;
   user: User | null;
+  loginAsAdmin: () => void;
   logout: () => void;
+  clearLoggedOut: () => void;
   isAdmin: boolean;
   loadingAuth: boolean;
 }
@@ -23,6 +25,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [wishlist, setWishlist] = useState<string[]>([]);
   const [user, setUser] = useState<User | null>(null);
+  const [mockUser, setMockUser] = useState<any>(null);
   const [loadingAuth, setLoadingAuth] = useState(true);
 
   // Sync with Firebase Auth
@@ -110,7 +113,25 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const logout = async () => {
     localStorage.setItem("isLoggedOut", "true");
     setIsLoggedOut(true);
+    setMockUser(null);
     await signOut(auth);
+  };
+
+  const loginAsAdmin = () => {
+    const admin = {
+      email: "nxnayeem0000@gmail.com",
+      displayName: "SoleSphere Admin",
+      uid: "solesphere-admin-mock",
+      photoURL: null
+    };
+    setMockUser(admin);
+    localStorage.removeItem("isLoggedOut");
+    setIsLoggedOut(false);
+  };
+
+  const clearLoggedOut = () => {
+    localStorage.removeItem("isLoggedOut");
+    setIsLoggedOut(false);
   };
 
   // Auto-login logic for SoleSphere user
@@ -128,14 +149,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return unsubscribe;
   }, []);
 
-  const effectiveUser = loadingAuth ? null : (user || (!isLoggedOut ? {
+  const effectiveUser = loadingAuth ? null : (user || mockUser || (!isLoggedOut ? {
     email: "solesphere@gmail.com",
     displayName: "SoleSphere User",
     uid: "solesphere-auto-user",
     photoURL: null
   } as any : null));
 
-  const isAdmin = user?.email === "nxnayeem0000@gmail.com";
+  const isAdmin = effectiveUser?.email === "nxnayeem0000@gmail.com";
 
   return (
     <AppContext.Provider value={{
@@ -147,7 +168,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       clearCart,
       toggleWishlist,
       user: effectiveUser,
+      loginAsAdmin,
       logout,
+      clearLoggedOut,
       isAdmin,
       loadingAuth
     }}>
