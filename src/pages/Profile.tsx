@@ -59,9 +59,11 @@ export default function Profile() {
         <aside className="w-full md:w-[320px] border-r border-brand-line p-10 space-y-12 bg-[#f9f9f9]">
            <header>
               <div className="w-20 h-20 bg-brand-ink rounded-full mb-6 flex items-center justify-center text-white text-3xl font-black italic tracking-tighter">
-                {user.name.charAt(0)}
+                {(user.displayName || user.email || "?").charAt(0).toUpperCase()}
               </div>
-              <h1 className="text-4xl font-black italic tracking-tighter uppercase leading-none mb-2">{user.name}.</h1>
+              <h1 className="text-4xl font-black italic tracking-tighter uppercase leading-none mb-2">
+                {user.displayName || user.email?.split("@")[0] || "User"}.
+              </h1>
               <p className="text-[10px] font-black uppercase tracking-widest text-brand-muted">Member since Spring 26</p>
            </header>
 

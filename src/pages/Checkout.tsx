@@ -3,6 +3,45 @@ import { useApp } from "../context/AppContext";
 import { useNavigate } from "react-router-dom";
 import { CreditCard, Truck, ShieldCheck, ArrowLeft, CheckCircle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { db, auth } from "../lib/firebase"; // Added auth import
+import { collection, doc, setDoc } from "firebase/firestore";
+
+enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+interface FirestoreErrorInfo {
+  error: string;
+  operationType: OperationType;
+  path: string | null;
+  authInfo: {
+    userId?: string | null;
+    email?: string | null;
+    emailVerified?: boolean | null;
+    isAnonymous?: boolean | null;
+  }
+}
+
+function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  const errInfo: FirestoreErrorInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    authInfo: {
+      userId: auth.currentUser?.uid,
+      email: auth.currentUser?.email,
+      emailVerified: auth.currentUser?.emailVerified,
+      isAnonymous: auth.currentUser?.isAnonymous,
+    },
+    operationType,
+    path
+  };
+  console.error('Firestore Error Details: ', JSON.stringify(errInfo));
+  throw new Error(JSON.stringify(errInfo));
+}
 
 export default function Checkout() {
   const { cart, clearCart } = useApp();
@@ -15,7 +54,6 @@ export default function Checkout() {
     email: "",
     phone: "",
     address: "",
-    city: "",
     paymentMethod: "cod"
   });
 
@@ -28,25 +66,45 @@ export default function Checkout() {
     setIsSubmitting(true);
 
     try {
-      const response = await fetch("/api/orders", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...formData,
-          items: cart,
-          total
-        })
+      const orderId = `ORD-${Math.floor(Math.random() * 1000000)}`;
+
+      // Sanitize items to ensure no undefined values reach Firestore
+      const sanitizedItems = cart.map(item => {
+        const sanitized: any = {
+          id: item.id,
+          name: item.name,
+          brand: item.brand,
+          price: item.price,
+          quantity: item.quantity,
+          selectedSize: item.selectedSize,
+          images: item.images,
+        };
+        if (item.selectedVariantId) sanitized.selectedVariantId = item.selectedVariantId;
+        if (item.selectedVariantName) sanitized.selectedVariantName = item.selectedVariantName;
+        return sanitized;
       });
 
-      const order = await response.json();
-      if (order.id) {
-        setLastOrder(order);
-        clearCart();
-        setShowConfirmation(true);
+      const orderData = {
+        ...formData,
+        items: sanitizedItems,
+        total,
+        status: "Processing",
+        date: new Date().toISOString()
+      };
+
+      try {
+        await setDoc(doc(db, "orders", orderId), orderData);
+      } catch (err) {
+        handleFirestoreError(err, OperationType.WRITE, `orders/${orderId}`);
       }
+      
+      setLastOrder({ id: orderId, ...orderData });
+      clearCart();
+      setShowConfirmation(true);
     } catch (err) {
-      console.error(err);
-      alert("Something went wrong. Please try again.");
+      console.error("Checkout: Order placement failed:", err);
+      const errorMessage = err instanceof Error ? err.message : "Something went wrong.";
+      alert(`Order placement failed: ${errorMessage}`);
     } finally {
       setIsSubmitting(false);
     }
@@ -128,8 +186,9 @@ export default function Checkout() {
                       />
                    </div>
                    <div>
-                      <label className="block text-[10px] uppercase font-bold text-gray-400 tracking-widest mb-2">Email (Optional)</label>
+                      <label className="block text-[10px] uppercase font-bold text-gray-400 tracking-widest mb-2">Email Address *</label>
                       <input
+                        required
                         type="email"
                         value={formData.email}
                         onChange={e => setFormData({...formData, email: e.target.value})}

@@ -1,5 +1,7 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { Product, CartItem, Order } from "../types";
+import { auth } from "../lib/firebase";
+import { onAuthStateChanged, signOut, User } from "firebase/auth";
 
 interface AppContextType {
   cart: CartItem[];
@@ -9,10 +11,10 @@ interface AppContextType {
   updateQuantity: (productId: string, size: string, quantity: number, variantId?: string) => void;
   clearCart: () => void;
   toggleWishlist: (productId: string) => void;
-  user: any | null;
-  login: (userData: any) => void;
+  user: User | null;
   logout: () => void;
   isAdmin: boolean;
+  loadingAuth: boolean;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -20,16 +22,24 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 export function AppProvider({ children }: { children: ReactNode }) {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [wishlist, setWishlist] = useState<string[]>([]);
-  const [user, setUser] = useState<any | null>(null);
+  const [user, setUser] = useState<User | null>(null);
+  const [loadingAuth, setLoadingAuth] = useState(true);
 
-  // Persistence
+  // Sync with Firebase Auth
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      setUser(firebaseUser);
+      setLoadingAuth(false);
+    });
+    return unsubscribe;
+  }, []);
+
+  // Persistence for non-auth state
   useEffect(() => {
     const savedCart = localStorage.getItem("cart");
     const savedWishlist = localStorage.getItem("wishlist");
-    const savedUser = localStorage.getItem("user");
     if (savedCart) setCart(JSON.parse(savedCart));
     if (savedWishlist) setWishlist(JSON.parse(savedWishlist));
-    if (savedUser) setUser(JSON.parse(savedUser));
   }, []);
 
   useEffect(() => {
@@ -103,10 +113,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     );
   };
 
-  const login = (userData: any) => setUser(userData);
-  const logout = () => setUser(null);
+  const logout = () => signOut(auth);
 
-  const isAdmin = user?.role === "admin";
+  const isAdmin = user?.email === "admin@solesphere.com" || user?.email === "nxnayeem000@gmail.com";
 
   return (
     <AppContext.Provider value={{
@@ -118,11 +127,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       clearCart,
       toggleWishlist,
       user,
-      login,
       logout,
-      isAdmin
+      isAdmin,
+      loadingAuth
     }}>
-      {children}
+      {!loadingAuth && children}
     </AppContext.Provider>
   );
 }

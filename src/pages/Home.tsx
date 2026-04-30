@@ -1,17 +1,32 @@
+import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { ArrowRight, Star, ShoppingBag, Zap, Share2, Check } from "lucide-react";
 import { Link } from "react-router-dom";
-import { useState, useEffect } from "react";
 import { Product } from "../types";
+import { db } from "../lib/firebase";
+import { collection, query, limit, getDocs } from "firebase/firestore";
 
 export default function Home() {
   const [trending, setTrending] = useState<Product[]>([]);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch("/api/products")
-      .then(res => res.json())
-      .then(data => setTrending([...data].reverse().slice(0, 4)));
+    const fetchTrending = async () => {
+      try {
+        const q = query(collection(db, "products"), limit(10));
+        const snapshot = await getDocs(q);
+        const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Product));
+        
+        if (data.length > 0) {
+          const sorted = [...data].reverse();
+          setTrending(sorted.slice(0, 4));
+        }
+      } catch (err) {
+        console.error("Home: Failed to fetch products from Firestore:", err);
+      }
+    };
+
+    fetchTrending();
   }, []);
 
   const handleQuickShare = async (e: React.MouseEvent, product: Product) => {
@@ -94,7 +109,7 @@ export default function Home() {
               <h1 className="text-[14vw] md:text-[8rem] lg:text-[10rem] font-black leading-[0.85] tracking-[-0.05em] uppercase mb-8">
                 Stride<br/><span className="text-gray-200">X-1 Pro</span>
               </h1>
-              <p className="text-2xl font-light mb-10">৳249.00</p>
+              <p className="text-2xl font-light mb-10">৳4999.00</p>
               
               <div className="flex gap-4">
                 <Link to="/shop" className="btn-primary">Add to Bag</Link>

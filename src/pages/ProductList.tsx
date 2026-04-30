@@ -1,8 +1,10 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { Filter, SlidersHorizontal, ChevronDown, Star, Share2, Check } from "lucide-react";
 import { Product } from "../types";
 import { Link, useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
+import { db } from "../lib/firebase";
+import { collection, getDocs, query, orderBy } from "firebase/firestore";
 
 export default function ProductList() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -14,13 +16,18 @@ export default function ProductList() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch("/api/products")
-      .then(res => res.json())
-      .then(data => {
+    const fetchProducts = async () => {
+      try {
+        const snapshot = await getDocs(collection(db, "products"));
+        const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Product));
         const sortedData = [...data].reverse();
         setProducts(sortedData);
         setFilteredProducts(sortedData);
-      });
+      } catch (err) {
+        console.error("ProductList: Firestore fetch error:", err);
+      }
+    };
+    fetchProducts();
   }, []);
 
   const handleQuickShare = async (e: React.MouseEvent, product: Product) => {

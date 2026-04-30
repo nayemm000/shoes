@@ -2,8 +2,10 @@ import React, { useState, useEffect } from "react";
 import { useApp } from "../context/AppContext";
 import { useNavigate } from "react-router-dom";
 import { BarChart3, Users, Package, Banknote, TrendingUp, Search, Eye, Plus, Edit2, Trash2, X, Image as ImageIcon } from "lucide-react";
-import { Order, Product } from "../types";
+import { Order, Product, ProductVariant } from "../types";
 import { motion, AnimatePresence } from "framer-motion";
+import { db } from "../lib/firebase";
+import { collection, getDocs, doc, setDoc, deleteDoc, updateDoc, query, orderBy, onSnapshot } from "firebase/firestore";
 
 export default function Admin() {
   const { isAdmin } = useApp();
@@ -34,36 +36,36 @@ export default function Admin() {
       return;
     }
 
-    fetchOrders();
-    fetchAnalytics();
-    fetchProducts();
+    // Use realtime listeners for a better experience
+    const unsubOrders = onSnapshot(query(collection(db, "orders"), orderBy("date", "desc")), (snapshot) => {
+      const ordersData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Order));
+      setOrders(ordersData);
+      
+      const total = ordersData.reduce((sum, o) => sum + (o.total || 0), 0);
+      setAnalytics({ totalSales: total, orderCount: ordersData.length });
+    });
+
+    const unsubProducts = onSnapshot(collection(db, "products"), (snapshot) => {
+      const productsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Product));
+      setProducts(productsData);
+    });
+
+    return () => {
+      unsubOrders();
+      unsubProducts();
+    };
   }, [isAdmin, navigate]);
 
-  const fetchOrders = () => {
-    fetch("/api/admin/orders")
-      .then(res => res.json())
-      .then(setOrders);
-  };
-
-  const fetchAnalytics = () => {
-    fetch("/api/admin/analytics")
-      .then(res => res.json())
-      .then(setAnalytics);
-  };
-
-  const fetchProducts = () => {
-    fetch("/api/products")
-      .then(res => res.json())
-      .then(setProducts);
-  };
-
   const handleUpdateOrderStatus = async (id: string, newStatus: string) => {
-    await fetch(`/api/admin/orders/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status: newStatus })
-    });
-    fetchOrders();
+    try {
+      await updateDoc(doc(db, "orders", id), { 
+        status: newStatus,
+        updatedAt: new Date().toISOString()
+      });
+      console.log(`Order ${id} status updated to ${newStatus}`);
+    } catch (err) {
+      console.error("Failed to update order status:", err);
+    }
   };
 
   const handleOpenAddModal = () => {
@@ -102,26 +104,93 @@ export default function Admin() {
 
   const handleDeleteProduct = async (id: string) => {
     if (confirm("Are you sure you want to delete this product?")) {
-      await fetch(`/api/admin/products/${id}`, { method: "DELETE" });
-      fetchProducts();
+      try {
+        await deleteDoc(doc(db, "products", id));
+      } catch (err) {
+        console.error("Failed to delete product:", err);
+      }
     }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const url = editingProduct 
-      ? `/api/admin/products/${editingProduct.id}` 
-      : "/api/admin/products";
-    const method = editingProduct ? "PUT" : "POST";
+    try {
+      let id = editingProduct?.id;
+      
+      if (!id) {
+        // Generate a numeric ID like the previous system if preferred, or use Firestore default
+        // Let's try to find the next numeric ID for consistency
+        const nextNumericId = products.length > 0
+          ? (Math.max(...products.map(p => parseInt(String(p.id)) || 0)) + 1).toString()
+          : "1";
+        id = nextNumericId;
+      }
 
-    await fetch(url, {
-      method,
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(formData)
-    });
+      const productData = {
+        ...formData,
+        rating: editingProduct?.rating || 5.0,
+        reviews: editingProduct?.reviews || 0,
+        updatedAt: new Date().toISOString()
+      };
 
-    setIsProductModalOpen(false);
-    fetchProducts();
+      await setDoc(doc(db, "products", id), productData);
+      setIsProductModalOpen(false);
+    } catch (err) {
+      console.error("Failed to save product:", err);
+      alert("Failed to save product. Check console for details.");
+    }
+  };
+
+  const handleSeedData = async () => {
+    if (!confirm("This will populate your database with seed products. Continue?")) return;
+    
+    // Seed Data
+    const seedProducts = [
+      {
+        id: "1",
+        name: "Nebula Runner X1",
+        brand: "SoleSphere",
+        price: 4999,
+        discount: 15,
+        category: "Running",
+        sizes: ["40", "41", "42", "43"],
+        stock: 50,
+        images: [
+          "https://images.unsplash.com/photo-1542291026-7eec264c27ff",
+          "https://images.unsplash.com/photo-1595950653106-6c9ebd614d3a"
+        ],
+        description: "Experience weightless comfort with the Nebula Runner X1. Designed for long-distance performance and style.",
+        rating: 4.8,
+        reviews: 128
+      },
+      {
+        id: "2",
+        name: "Urban Glide Loafers",
+        brand: "Elegance",
+        price: 3500,
+        discount: 0,
+        category: "Lifestyle",
+        sizes: ["41", "42", "43"],
+        stock: 30,
+        images: [
+          "https://images.unsplash.com/photo-1525966222134-fcfa99b8ae77",
+          "https://images.unsplash.com/photo-1549298916-b41d501d3772"
+        ],
+        description: "Sophisticated comfort for the modern city dweller. Real leather craftsmanship with a minimalist touch.",
+        rating: 4.5,
+        reviews: 95
+      }
+    ];
+
+    try {
+      for (const p of seedProducts) {
+        await setDoc(doc(db, "products", p.id), p);
+      }
+      alert("Database seeded successfully.");
+    } catch (err) {
+      console.error("Seeding failed:", err);
+      alert("Seeding failed. Check console.");
+    }
   };
 
   if (!isAdmin) return null;
@@ -146,6 +215,12 @@ export default function Admin() {
               <p className="text-[11px] font-black uppercase tracking-widest text-brand-muted">Operational Workspace</p>
            </div>
            <div className="flex gap-4">
+              <button 
+                onClick={handleSeedData}
+                className="px-6 py-4 bg-gray-100 text-[10px] font-black uppercase tracking-widest hover:bg-gray-200 transition-colors"
+              >
+                Seed Catalog
+              </button>
               <button onClick={handleOpenAddModal} className="btn-primary flex items-center gap-2">
                 <Plus className="w-4 h-4" /> Add Product
               </button>
@@ -204,6 +279,7 @@ export default function Admin() {
                                   <p className="text-[9px] font-black uppercase tracking-[0.2em] text-brand-muted mb-4">Logistics Information</p>
                                   <div className="space-y-1">
                                     <p className="text-xs font-bold uppercase">{order.address}</p>
+                                    <p className="text-xs text-brand-muted font-bold capitalize">{order.customerName} // {order.email}</p>
                                     <p className="text-xs text-brand-muted">{order.phone} // {order.paymentMethod}</p>
                                   </div>
                                 </div>

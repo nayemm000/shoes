@@ -2,9 +2,68 @@ import express from "express";
 import { createServer as createViteServer } from "vite";
 import path from "path";
 import { fileURLToPath } from "url";
+import { initializeApp, getApp, getApps } from 'firebase-admin/app';
+import { getFirestore } from 'firebase-admin/firestore';
+import { readFileSync, existsSync } from 'fs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// Initialize Firebase Admin
+let firebaseConfig: any = {};
+const configPath = path.join(process.cwd(), 'firebase-applet-config.json');
+if (existsSync(configPath)) {
+  try {
+    firebaseConfig = JSON.parse(readFileSync(configPath, 'utf8'));
+  } catch (e) {
+    console.error("Error parsing firebase-applet-config.json", e);
+  }
+}
+
+const getDb = () => {
+    try {
+        const envProjectId = process.env.GOOGLE_CLOUD_PROJECT || process.env.GCP_PROJECT;
+        const configProjectId = firebaseConfig.projectId;
+        console.log(`DIAGNOSTIC: EnvProject=[${envProjectId}], ConfigProject=[${configProjectId}], ConfigDb=[${firebaseConfig.firestoreDatabaseId}]`);
+
+        if (getApps().length === 0) {
+            if (configProjectId) {
+                initializeApp({ projectId: configProjectId });
+                console.log(`Firebase Admin initialized with project: [${configProjectId}]`);
+            } else {
+                initializeApp();
+                console.log("Firebase Admin initialized with default settings.");
+            }
+        }
+        
+        const app = getApp();
+        const dbId = firebaseConfig.firestoreDatabaseId;
+
+        // If we are in the same project as the config, we can try to use the specific DB
+        if (dbId) {
+            console.log(`Attempting to reach database [${dbId}]...`);
+            return getFirestore(app, dbId);
+        }
+        
+        return getFirestore(app);
+    } catch (err) {
+        console.error("Firestore init error:", err);
+        return getFirestore();
+    }
+};
+
+const database = getDb();
+
+// Relational Sync and Validation Helpers (Admin side doesn't need rules, but we use these for logic)
+const handleFirestoreError = (error: any, operation: string, collection: string) => {
+  console.error(`Firestore [${operation}] on [${collection}] failed:`, error);
+  // Detailed reporting if possible
+  const details = error instanceof Error ? error.message : String(error);
+  if (details.includes("PERMISSION_DENIED")) {
+    console.error("CRITICAL: Permission Denied. check project ID and service account scopes.");
+  }
+  return { error: `Firestore ${operation} failed`, details };
+};
 
 async function startServer() {
   const app = express();
@@ -12,8 +71,8 @@ async function startServer() {
 
   app.use(express.json());
 
-  // Mock Data
-  let products = [
+  // Seed Data (only if empty)
+  const seedProducts = [
     {
       id: "1",
       name: "Nebula Runner X1",
@@ -82,7 +141,7 @@ async function startServer() {
       rating: 4.7,
       reviews: 82
     },
-     {
+    {
       id: "5",
       name: "Zenith Air Max",
       brand: "SoleSphere",
@@ -101,86 +160,152 @@ async function startServer() {
     }
   ];
 
-  let orders: any[] = [];
+  // Health Check
+  app.get("/api/health", (req, res) => {
+    res.json({ 
+      status: "ok", 
+      env: process.env.NODE_ENV,
+      cwd: process.cwd(),
+      firebaseAppCount: getApps().length,
+      activeProjectId: getApps().length ? getApp().options.projectId : null,
+      configProjectId: firebaseConfig.projectId,
+      envProjectId: process.env.GOOGLE_CLOUD_PROJECT || process.env.GCP_PROJECT,
+      configDbId: firebaseConfig.firestoreDatabaseId,
+      firestoreInitialized: !!database
+    });
+  });
 
   // API Routes
-  app.get("/api/products", (req, res) => {
-    res.json(products);
-  });
-
-  app.post("/api/admin/products", (req, res) => {
-    const nextId = products.length > 0 
-      ? (Math.max(...products.map(p => parseInt(p.id) || 0)) + 1).toString()
-      : "1";
+  app.get("/api/products", async (req, res) => {
+    console.log("GET /api/products requested");
+    try {
+      const snapshot = await database.collection("products").get();
+      console.log(`Fetched ${snapshot.size} products from Firestore`);
+      let products = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       
-    const newProduct = {
-      id: nextId,
-      rating: 5.0,
-      reviews: 0,
-       ...req.body
-    };
-    products.push(newProduct);
-    res.status(201).json(newProduct);
-  });
-
-  app.put("/api/admin/products/:id", (req, res) => {
-    const index = products.findIndex(p => p.id === req.params.id);
-    if (index !== -1) {
-      products[index] = { ...products[index], ...req.body };
-      res.json(products[index]);
-    } else {
-      res.status(404).json({ error: "Product not found" });
+      // Seed if empty
+      if (products.length === 0) {
+        console.log("Seeding products...");
+        for (const p of seedProducts) {
+          await database.collection("products").doc(p.id).set(p);
+        }
+        const newSnapshot = await database.collection("products").get();
+        products = newSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      }
+      
+      res.json(products);
+    } catch (error) {
+      console.error("GET /api/products Firestore error, using fallback seed data:", error);
+      // Fallback to static seed data so the UI doesn't break
+      res.json(seedProducts);
     }
   });
 
-  app.delete("/api/admin/products/:id", (req, res) => {
-    products = products.filter(p => p.id !== req.params.id);
-    res.status(204).send();
+  app.post("/api/admin/products", async (req, res) => {
+    console.log("POST /api/admin/products requested with body:", JSON.stringify(req.body));
+    try {
+      const snapshot = await database.collection("products").get();
+      const productsList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      
+      const nextId = productsList.length > 0 
+        ? (Math.max(...productsList.map(p => parseInt(String((p as any).id)) || 0)) + 1).toString()
+        : "1";
+        
+      const newProduct = {
+        rating: 5.0,
+        reviews: 0,
+         ...req.body
+      };
+      
+      await database.collection("products").doc(nextId).set(newProduct);
+      res.status(201).json({ id: nextId, ...newProduct });
+    } catch (error) {
+      res.status(500).json(handleFirestoreError(error, "CREATE", "products"));
+    }
   });
 
-  app.patch("/api/admin/orders/:id", (req, res) => {
-    const index = orders.findIndex(o => o.id === req.params.id);
-    if (index !== -1) {
-      const updatedOrder = { ...orders[index], ...req.body, updatedAt: new Date().toISOString() };
-      orders[index] = updatedOrder;
+  app.put("/api/admin/products/:id", async (req, res) => {
+    try {
+      await database.collection("products").doc(req.params.id).update(req.body);
+      const updated = await database.collection("products").doc(req.params.id).get();
+      res.json({ id: updated.id, ...updated.data() });
+    } catch (error) {
+      res.status(500).json(handleFirestoreError(error, "UPDATE", `products/${req.params.id}`));
+    }
+  });
+
+  app.delete("/api/admin/products/:id", async (req, res) => {
+    try {
+      await database.collection("products").doc(req.params.id).delete();
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json(handleFirestoreError(error, "DELETE", `products/${req.params.id}`));
+    }
+  });
+
+  app.patch("/api/admin/orders/:id", async (req, res) => {
+    try {
+      const orderRef = database.collection("orders").doc(req.params.id);
+      await orderRef.update({ ...req.body, updatedAt: new Date().toISOString() });
+      const updated = await orderRef.get();
       
-      // Simulate Notification
       console.log(`[NOTIFICATION] Order ${req.params.id} updated to ${req.body.status}. Notification sent.`);
-      
-      res.json(updatedOrder);
-    } else {
-      res.status(404).json({ error: "Order not found" });
+      res.json({ id: updated.id, ...updated.data() });
+    } catch (error) {
+      res.status(500).json(handleFirestoreError(error, "UPDATE", `orders/${req.params.id}`));
     }
   });
 
-  app.post("/api/orders", (req, res) => {
-    const order = {
-      id: `ORD-${Math.floor(Math.random() * 1000000)}`,
-      status: "Processing",
-      date: new Date().toISOString(),
-      ...req.body
-    };
-    orders.push(order);
-    res.status(201).json(order);
-  });
-
-  app.get("/api/orders/:id", (req, res) => {
-    const order = orders.find(o => o.id === req.params.id);
-    if (order) {
-      res.json(order);
-    } else {
-      res.status(404).json({ error: "Order not found" });
+  app.post("/api/orders", async (req, res) => {
+    try {
+      const orderId = `ORD-${Math.floor(Math.random() * 1000000)}`;
+      const order = {
+        status: "Processing",
+        date: new Date().toISOString(),
+        ...req.body
+      };
+      await database.collection("orders").doc(orderId).set(order);
+      res.status(201).json({ id: orderId, ...order });
+    } catch (error) {
+      res.status(500).json(handleFirestoreError(error, "CREATE", "orders"));
     }
   });
 
-  app.get("/api/admin/orders", (req, res) => {
-    res.json(orders);
+  app.get("/api/orders/:id", async (req, res) => {
+    try {
+      const doc = await database.collection("orders").doc(req.params.id).get();
+      if (doc.exists) {
+        res.json({ id: doc.id, ...doc.data() });
+      } else {
+        res.status(404).json({ error: "Order not found" });
+      }
+    } catch (error) {
+      res.status(500).json(handleFirestoreError(error, "GET", `orders/${req.params.id}`));
+    }
   });
 
-  app.get("/api/admin/analytics", (req, res) => {
-    const totalSales = orders.reduce((sum, o) => sum + o.total, 0);
-    const orderCount = orders.length;
-    res.json({ totalSales, orderCount });
+  app.get("/api/admin/orders", async (req, res) => {
+    try {
+      const snapshot = await database.collection("orders").orderBy("date", "desc").get();
+      const orders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      res.json(orders);
+    } catch (error) {
+      console.error("Orders listing failure, returning empty array:", error);
+      res.json([]);
+    }
+  });
+
+  app.get("/api/admin/analytics", async (req, res) => {
+    try {
+      const snapshot = await database.collection("orders").get();
+      const orders = snapshot.docs.map(doc => doc.data());
+      const totalSales = orders.reduce((sum, o) => sum + (o.total || 0), 0);
+      const orderCount = orders.length;
+      res.json({ totalSales, orderCount });
+    } catch (error) {
+      console.error("Analytics failure, returning zeroed stats:", error);
+      res.json({ totalSales: 0, orderCount: 0 });
+    }
   });
 
   // Vite middleware for development
@@ -192,14 +317,24 @@ async function startServer() {
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), "dist");
-    app.use(express.static(distPath));
-    app.get("*", (req, res) => {
-      res.sendFile(path.join(distPath, "index.html"));
-    });
+    console.log(`Checking for dist folder at: ${distPath}`);
+    if (existsSync(distPath)) {
+      console.log("Serving production build from dist folder");
+      app.use(express.static(distPath));
+      app.get("*", (req, res) => {
+        res.sendFile(path.join(distPath, "index.html"));
+      });
+    } else {
+      console.warn("Dist folder not found. Falling back to development-like error.");
+      app.get("*", (req, res) => {
+        res.status(500).send("Production build (dist/) not found. Please ensure 'npm run build' was successful.");
+      });
+    }
   }
 
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);
+    console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
   });
 }
 

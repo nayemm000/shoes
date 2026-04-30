@@ -3,6 +3,8 @@ import { useSearchParams, Link } from "react-router-dom";
 import { CheckCircle, Truck, Package, Clock, ShieldCheck, ArrowRight } from "lucide-react";
 import { motion } from "framer-motion";
 import { Order } from "../types";
+import { db } from "../lib/firebase";
+import { doc, getDoc } from "firebase/firestore";
 
 export default function Tracking() {
   const [searchParams] = useSearchParams();
@@ -14,12 +16,20 @@ export default function Tracking() {
   useEffect(() => {
     if (orderId) {
       setLoading(true);
-      fetch(`/api/orders/${orderId}`)
-        .then(res => res.json())
-        .then(data => {
-            if (!data.error) setOrder(data);
-        })
-        .finally(() => setLoading(false));
+      const fetchOrder = async () => {
+        try {
+          const orderRef = doc(db, "orders", orderId);
+          const snapshot = await getDoc(orderRef);
+          if (snapshot.exists()) {
+            setOrder({ id: snapshot.id, ...snapshot.data() } as Order);
+          }
+        } catch (err) {
+          console.error("Tracking: Firestore fetch error:", err);
+        } finally {
+          setLoading(false);
+        }
+      };
+      fetchOrder();
     }
   }, [orderId]);
 
@@ -101,6 +111,7 @@ export default function Tracking() {
                    <h3 className="font-bold uppercase tracking-widest text-sm mb-6 pb-2 border-b">Shipping To</h3>
                    <div className="space-y-2 text-sm">
                       <p className="font-black italic uppercase">{order.customerName}</p>
+                      <p className="text-gray-500 font-medium italic">{order.email}</p>
                       <p className="text-gray-500">{order.address}</p>
                       <p className="text-gray-500 italic">Phone: {order.phone}</p>
                    </div>

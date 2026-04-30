@@ -5,6 +5,8 @@ import { Product } from "../types";
 import { useApp } from "../context/AppContext";
 import { motion, AnimatePresence } from "framer-motion";
 import { GoogleGenAI } from "@google/genai";
+import { db } from "../lib/firebase";
+import { doc, getDoc } from "firebase/firestore";
 
 export default function ProductDetail() {
   const { id } = useParams();
@@ -21,11 +23,15 @@ export default function ProductDetail() {
   const [isCopied, setIsCopied] = useState(false);
 
   useEffect(() => {
-    fetch("/api/products")
-      .then(res => res.json())
-      .then(data => {
-        const found = data.find((p: Product) => p.id === id);
-        if (found) {
+    if (!id) return;
+
+    const fetchProduct = async () => {
+      try {
+        const productRef = doc(db, "products", id);
+        const snapshot = await getDoc(productRef);
+        
+        if (snapshot.exists()) {
+          const found = { id: snapshot.id, ...snapshot.data() } as Product;
           // Filter out empty image strings
           const cleanedProduct = {
             ...found,
@@ -42,7 +48,13 @@ export default function ProductDetail() {
         } else {
           navigate("/shop");
         }
-      });
+      } catch (err) {
+        console.error("ProductDetail: Firestore fetch error:", err);
+        navigate("/shop");
+      }
+    };
+
+    fetchProduct();
   }, [id, navigate]);
 
   const selectedVariant = product?.variants?.find(v => v.id === selectedVariantId) || null;

@@ -1,0 +1,73 @@
+{
+  "entities": {
+    "Product": {
+      "title": "Product",
+      "description": "A sneaker product",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "brand": { "type": "string" },
+        "price": { "type": "number" },
+        "discount": { "type": "number" },
+        "category": { "type": "string" },
+        "sizes": { 
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "stock": { "type": "number" },
+        "images": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "description": { "type": "string" },
+        "rating": { "type": "number" },
+        "reviews": { "type": "number" },
+        "variants": {
+           "type": "array",
+           "items": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "string" },
+                "name": { "type": "string" },
+                "priceOverride": { "type": "number" },
+                "imageIndex": { "type": "number" },
+                "stockPerSize": { "type": "object" }
+              }
+           }
+        }
+      },
+      "required": ["name", "brand", "price"]
+    },
+    "Order": {
+      "title": "Order",
+      "description": "A customer order",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "status": { "type": "string" },
+        "date": { "type": "string", "format": "date-time" },
+        "customerName": { "type": "string" },
+        "email": { "type": "string" },
+        "phone": { "type": "string" },
+        "address": { "type": "string" },
+        "items": { "type": "array" },
+        "subtotal": { "type": "number" },
+        "shipping": { "type": "number" },
+        "total": { "type": "number" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["customerName", "phone", "address", "total"]
+    }
+  },
+  "firestore": {
+    "products": {
+      "schema": "Product",
+      "description": "Collection of available sneakers"
+    },
+    "orders": {
+      "schema": "Order",
+      "description": "Collection of customer orders"
+    }
+  }
+}

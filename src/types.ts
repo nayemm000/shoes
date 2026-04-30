@@ -34,6 +34,7 @@ export interface Order {
   status: string;
   date: string;
   customerName: string;
+  email: string;
   phone: string;
   address: string;
   paymentMethod: string;
