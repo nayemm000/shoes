@@ -138,7 +138,7 @@ export default function Navbar() {
                 <p className="text-[10px] font-black uppercase tracking-[0.3em] text-brand-muted mb-6">User Context</p>
                 {user ? (
                   <div className="space-y-4">
-                    <p className="text-sm font-black uppercase tracking-widest text-brand-ink">Identity: {user.name}</p>
+                    <p className="text-sm font-black uppercase tracking-widest text-brand-ink">Identity: {user.displayName || user.email?.split('@')[0]}</p>
                     <Link to="/profile" onClick={() => setIsMenuOpen(false)} className="block text-4xl font-black italic tracking-tighter uppercase leading-none text-brand-ink">Dashboard.</Link>
                     {isAdmin && (
                       <Link to="/admin" onClick={() => setIsMenuOpen(false)} className="block text-xl font-black italic tracking-tight uppercase text-brand-accent">Admin Center.</Link>

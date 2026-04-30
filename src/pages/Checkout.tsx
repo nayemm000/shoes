@@ -86,6 +86,7 @@ export default function Checkout() {
 
       const orderData = {
         ...formData,
+        userId: auth.currentUser?.uid || "guest",
         items: sanitizedItems,
         total,
         status: "Processing",

@@ -240,7 +240,9 @@ export default function Admin() {
                      <tr>
                         <th className="px-10 py-6">ID</th>
                         <th className="px-10 py-6">Date</th>
+                        <th className="px-10 py-6">Identity</th>
                         <th className="px-10 py-6">Customer</th>
+                        <th className="px-10 py-6">Items</th>
                         <th className="px-10 py-6">Total</th>
                         <th className="px-10 py-6">Status</th>
                         <th className="px-10 py-6">Actions</th>
@@ -254,7 +256,17 @@ export default function Admin() {
                              <td className="px-10 py-6 text-[10px] font-bold text-brand-muted">
                                 {new Date(order.date).toLocaleDateString()}
                              </td>
+                             <td className="px-10 py-6">
+                                {(order as any).userId === "guest" ? (
+                                  <span className="bg-gray-100 text-gray-400 px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-widest leading-none">Guest</span>
+                                ) : (
+                                  <span className="bg-green-100 text-green-600 px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-widest leading-none">User</span>
+                                )}
+                             </td>
                              <td className="px-10 py-6 uppercase text-xs font-bold">{order.customerName}</td>
+                             <td className="px-10 py-6 text-[10px] font-bold uppercase tracking-widest text-brand-muted">
+                                {order.items.reduce((acc, item) => acc + item.quantity, 0)} Units
+                             </td>
                              <td className="px-10 py-6 font-black italic">৳{order.total}</td>
                              <td className="px-10 py-6">
                                 <select

@@ -26,13 +26,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [loadingAuth, setLoadingAuth] = useState(true);
 
   // Sync with Firebase Auth
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
-      setUser(firebaseUser);
-      setLoadingAuth(false);
-    });
-    return unsubscribe;
-  }, []);
+  // (Moved inside the effect that handles isLoggedOut clearing)
 
   // Persistence for non-auth state
   useEffect(() => {
@@ -113,9 +107,35 @@ export function AppProvider({ children }: { children: ReactNode }) {
     );
   };
 
-  const logout = () => signOut(auth);
+  const logout = async () => {
+    localStorage.setItem("isLoggedOut", "true");
+    setIsLoggedOut(true);
+    await signOut(auth);
+  };
 
-  const isAdmin = user?.email === "admin@solesphere.com" || user?.email === "nxnayeem000@gmail.com";
+  // Auto-login logic for SoleSphere user
+  const [isLoggedOut, setIsLoggedOut] = useState(localStorage.getItem("isLoggedOut") === "true");
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      setUser(firebaseUser);
+      if (firebaseUser) {
+        localStorage.removeItem("isLoggedOut");
+        setIsLoggedOut(false);
+      }
+      setLoadingAuth(false);
+    });
+    return unsubscribe;
+  }, []);
+
+  const effectiveUser = loadingAuth ? null : (user || (!isLoggedOut ? {
+    email: "solesphere@gmail.com",
+    displayName: "SoleSphere User",
+    uid: "solesphere-auto-user",
+    photoURL: null
+  } as any : null));
+
+  const isAdmin = user?.email === "nxnayeem0000@gmail.com";
 
   return (
     <AppContext.Provider value={{
@@ -126,7 +146,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       updateQuantity,
       clearCart,
       toggleWishlist,
-      user,
+      user: effectiveUser,
       logout,
       isAdmin,
       loadingAuth

@@ -34,13 +34,18 @@ export default function Login() {
       if (isRegister) {
         await createUserWithEmailAndPassword(auth, email, password);
       } else {
+        // Special case for the requested admin credentials if they aren't in Firebase yet
+        // But we prefer real auth. If it fails with user-not-found we can't really "fake" it with Firebase Auth SDK easily 
+        // without a real account.
         await signInWithEmailAndPassword(auth, email, password);
       }
       navigate("/");
     } catch (err: any) {
       console.error("Auth error:", err);
       if (err.code === 'auth/operation-not-allowed') {
-        alert("Email/Password login is currently disabled. Please use Google Sign-In or enable 'Email/Password' in the Firebase Console under Authentication > Sign-in method.");
+        alert("Email/Password login is currently disabled. Please enable 'Email/Password' in the Firebase Console.");
+      } else if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
+        alert("Invalid credentials. If this is the Admin account, please ensure you have created the user in Firebase Console with Email: nxnayeem0000@gmail.com and Password: Amrin");
       } else {
         alert(err.message || "Authentication failed.");
       }
@@ -97,6 +102,13 @@ export default function Login() {
             <span className="flex-shrink mx-4 text-[10px] font-black uppercase text-gray-300 tracking-widest">Or</span>
             <div className="flex-grow border-t border-gray-100"></div>
           </div>
+          
+          <button
+            onClick={() => navigate("/shop")}
+            className="w-full bg-gray-50 text-gray-500 py-4 rounded-2xl font-bold uppercase text-[10px] tracking-widest hover:bg-gray-100 transition-all border border-gray-100"
+          >
+            Go Back to Shop
+          </button>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">

@@ -22,24 +22,29 @@ if (existsSync(configPath)) {
 
 const getDb = () => {
     try {
-        const envProjectId = process.env.GOOGLE_CLOUD_PROJECT || process.env.GCP_PROJECT;
+        const envProjectId = process.env.GOOGLE_CLOUD_PROJECT || process.env.GCP_PROJECT || process.env.FIREBASE_PROJECT_ID;
         const configProjectId = firebaseConfig.projectId;
         console.log(`DIAGNOSTIC: EnvProject=[${envProjectId}], ConfigProject=[${configProjectId}], ConfigDb=[${firebaseConfig.firestoreDatabaseId}]`);
 
         if (getApps().length === 0) {
-            if (configProjectId) {
-                initializeApp({ projectId: configProjectId });
-                console.log(`Firebase Admin initialized with project: [${configProjectId}]`);
-            } else {
+            // Try to initialize without arguments first to use ADC
+            try {
                 initializeApp();
-                console.log("Firebase Admin initialized with default settings.");
+                console.log("Firebase Admin initialized with default settings (ADC).");
+            } catch (e) {
+                if (configProjectId) {
+                    initializeApp({ projectId: configProjectId });
+                    console.log(`Firebase Admin initialized with config projectId: [${configProjectId}]`);
+                } else {
+                    throw e;
+                }
             }
         }
         
         const app = getApp();
         const dbId = firebaseConfig.firestoreDatabaseId;
 
-        // If we are in the same project as the config, we can try to use the specific DB
+        // In AI Studio, the database ID is often essential for Firestore Enterprise
         if (dbId) {
             console.log(`Attempting to reach database [${dbId}]...`);
             return getFirestore(app, dbId);
@@ -48,6 +53,8 @@ const getDb = () => {
         return getFirestore(app);
     } catch (err) {
         console.error("Firestore init error:", err);
+        // Last resort fallback
+        if (getApps().length === 0) initializeApp();
         return getFirestore();
     }
 };
